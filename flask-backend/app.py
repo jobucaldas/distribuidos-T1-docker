@@ -45,26 +45,15 @@ def receive_audio():
         audio_data = socket.recv()
         #print("Received audio data")
 
-def send_text(username, selected_channels):
+@app.route('/send_text', methods=['GET', 'POST'])
+def send_text(json):
     context = zmq.Context()
     socket = context.socket(zmq.PUB)
     socket.connect("tcp://localhost:5559")
     channel = None
     text_data = None
-    print("Digite .t para trocar de canal de texto\n")
-    while True:
-        time.sleep(0.05)
-        if channel == None:
-            channel = input("Selecione o canal para enviar sua mensagem: \n")
-        if channel not in selected_channels:
-            print(f"Canal {channel} inválido")
-            channel = None
-            continue
-        text_data = input("Digite sua mensagem: \n")
-        if text_data == ".t":
-            channel = None
-            continue
-        socket.send(f"{channel} - {username}: {text_data}".encode('utf-8'))
+
+    return socket.send(f"{json.id} - {json.username}: {json.message}".encode('utf-8'))
 
 def receive_text(selected_channels):
     context = zmq.Context()

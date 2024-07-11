@@ -4,6 +4,8 @@ import {useNavigate} from 'react-router-dom';
 const Call = () => {
   const navigate = useNavigate();
 
+  const [sendSuccess, setSendSuccess] = useState(false);
+
   const [chatMsg, setChatMsg] = useState('');
   const [chatLog, setChatLog] = useState([]);
 
@@ -96,6 +98,16 @@ const Call = () => {
                   <span class="text-gray-500 text-sm">Você entrou na chamada</span>
                 </div>
               </div>
+              {sendSuccess ?
+                <div class="flex flex-row space-x-2 space-y-2">
+                  <div class="flex flex-col">
+                    <span class="font-medium">{sessionStorage.getItem("userName")}</span>
+                    <span class="text-gray-500 text-sm">Você entrou na chamada</span>
+                  </div>
+                </div>
+                :
+                null
+              }
             </div>
             <div className="flex flex-col z-10 bg-white rounded-lg shadow-md p-4">
               <input
@@ -106,14 +118,25 @@ const Call = () => {
               />
               <button
                 onClick={
-                  () => {
-                    zmqPub.send(
-                      {
+                  async () => {
+                    await fetch("https://zfg8jsn9-5000.brs.devtunnels.ms/send_text", 
+                      {method: 'POST',
+                      headers: { 'Content-Type': 'application/json',},
+                      crossDomain: true,
+                      body: JSON.stringify({
                         "id": sessionStorage.getItem("callId"), 
                         "user": sessionStorage.getItem("userName"),
                         "msg": chatMsg
-                      }
-                    );
+                      }),
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                      console.log('Success:', data);
+                      setSendSuccess(true)
+                    })
+                    .catch((error) => {
+                      console.error('Error:', error);
+                    })
                   }
                 }
                 type="button"

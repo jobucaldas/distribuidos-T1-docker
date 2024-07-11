@@ -70,7 +70,7 @@ const Call = () => {
         </>
       </div>
       <div class="grid grid-cols-4 min-h-screen">
-        <div className="relative col-span-4 md:col-span-3">
+        <div class="relative col-span-4 md:col-span-3">
           <video class="absolute bottom-4 right-4 max-w-64" ref={webcamVideo} autoPlay playsInline></video>
           <div class="flex flex-row space-x-4 mx-4 fixed bottom-4">
             <button
@@ -89,7 +89,7 @@ const Call = () => {
           </div>
         </div>
         <div className="col-start-4 relative h-screen justify-end content-end bg-slate-200">
-          <h1 class="absolute top-4 space-y-4 m-4 bg-slate-200">Chat</h1>
+          <h1 class="absolute z-20 w-full space-y-4 pt-6 p-4 bg-slate-200">Chat</h1>
           <div class="absolute bottom-0 flex flex-col space-y-4 m-4">
             <div class="bg-white rounded-lg shadow-md p-4">
               <div class="flex flex-row space-x-2 space-y-2">
@@ -121,7 +121,10 @@ const Call = () => {
                   async () => {
                     await fetch("https://zfg8jsn9-5000.brs.devtunnels.ms/send_text", 
                       {method: 'POST',
-                      headers: { 'Content-Type': 'application/json',},
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*',
+                      },
                       crossDomain: true,
                       body: JSON.stringify({
                         "id": sessionStorage.getItem("callId"), 

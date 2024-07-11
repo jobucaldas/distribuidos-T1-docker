@@ -11,7 +11,8 @@
     "react-router-dom": "^6.24.1",
     "react-scripts": "5.0.1",
     "react-webcam": "^7.2.0",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+    "zeromq": "^6.0.0-beta.20"
   },
   "scripts": {
     "start": "react-scripts start",

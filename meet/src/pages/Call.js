@@ -41,6 +41,7 @@ const Call = () => {
 
   useInterval(async () => {
     const newMsg = await fetch("http://127.0.0.1:5000/receive_text", 
+    const newMsg = await fetch("http://127.0.0.1:5000/receive_text", 
       {method: 'POST',
       headers: {
         'Content-Type': 'application/json',

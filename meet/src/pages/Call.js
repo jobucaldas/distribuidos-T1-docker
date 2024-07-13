@@ -119,7 +119,7 @@ const Call = () => {
               <button
                 onClick={
                   async () => {
-                    await fetch("https://zfg8jsn9-5000.brs.devtunnels.ms/send_text", 
+                    await fetch("http://127.0.0.1:5000/send_text", 
                       {method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',

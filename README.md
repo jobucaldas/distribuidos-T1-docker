@@ -15,18 +15,23 @@ sudo apt install npm python3-zmq python3-flask python3-flask-cors
 ```
 
 ## Instruções de Execução
-Execute o arquivo broker.py:
+Realize a clonagem do repositório:
+```sh
+git clone https://github.com/lucaspquadros/distribuidos-T1.git
+```
+
+Execute o servidor com o arquivo broker.py:
 ```sh
 python3 broker.py
 ```
 
-Execute o cliente flask para comunicação com a interface:
+Execute o cliente:
 ```sh
 cd flask-backend
 python3 app.py
 ```
 
-Execute a interface que se comunica com o cliente flask:
+Execute a interface que se comunica com nosso cliente ZMQ-Flask:
 ```sh
 cd meet
 npm install

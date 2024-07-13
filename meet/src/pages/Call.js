@@ -40,7 +40,7 @@ const Call = () => {
   const [video, setVideo] = useState(true);
 
   useInterval(async () => {
-    newMsg = await fetch("http://127.0.0.1:5000/receive_text", 
+    const newMsg = await fetch("http://127.0.0.1:5000/receive_text", 
       {method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -60,6 +60,7 @@ const Call = () => {
     .catch((error) => {
       console.error('Error:', error);
     })
+    setChatLog([...chatLog, newMsg]);
   }, 1500);
 
   // controls the video DOM element

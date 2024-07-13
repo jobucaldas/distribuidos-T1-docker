@@ -53,7 +53,10 @@ def send_text(json):
     channel = None
     text_data = None
 
-    return socket.send(f"{json.id} - {json.username}: {json.message}".encode('utf-8'))
+    response = Flask.jsonify(socket.send(f"{json.id} - {json.username}: {json.message}".encode('utf-8')))
+    response.headers.add('Access-Control-Allow-Origin', '*')
+
+    return response
 
 def receive_text(selected_channels):
     context = zmq.Context()

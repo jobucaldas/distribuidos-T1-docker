@@ -55,21 +55,23 @@ def send_text():
     # response = jsonify({"response": textSocket.send(f"{content['id']} - {content['username']}: {content['message']}".encode('utf-8'))})
     # response.headers.add('Access-Control-Allow-Origin', '*')
 
-    return jsonify({"response": textSocket.send(f"{content['id']} - {content['user']}: {content['msg']}".encode('utf-8'))})
+    return jsonify({"response": textSocket.send_json(content)})
 
-def receive_text(selected_channels):
-    context = zmq.Context()
-    socket = context.socket(zmq.SUB)
-    socket.connect("tcp://localhost:5560")
-    for channel in selected_channels:
-        socket.setsockopt_string(zmq.SUBSCRIBE, channel)
-    while True:
-        text_data = socket.recv().decode('utf-8')
-        print(text_data)
+@app.route('/receive_text', methods=['GET', 'POST'])
+@cross_origin()
+def receive_text():
+    content = request.json
+    rTextSocket.setsockopt_string(zmq.SUBSCRIBE, content['id'])
+
+    return rTextSocket.recv_json()
 
 if __name__ == '__main__':
     textContext = zmq.Context()
     textSocket = textContext.socket(zmq.PUB)
     textSocket.connect("tcp://localhost:5559")
+
+    rTextContext = zmq.Context()
+    rTextSocket = rTextContext.socket(zmq.SUB)
+    rTextSocket.connect("tcp://localhost:5560")
 
     app.run(debug=True)

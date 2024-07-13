@@ -1,5 +1,25 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {useNavigate} from 'react-router-dom';
+ 
+function useInterval(callback, delay) {
+  const savedCallback = useRef();
+ 
+  // Remember the latest callback.
+  useEffect(() => {
+    savedCallback.current = callback;
+  }, [callback]);
+ 
+  // Set up the interval.
+  useEffect(() => {
+    function tick() {
+      savedCallback.current();
+    }
+    if (delay !== null) {
+      let id = setInterval(tick, delay);
+      return () => clearInterval(id);
+    }
+  }, [delay]);
+}
 
 const Call = () => {
   const navigate = useNavigate();
@@ -18,6 +38,29 @@ const Call = () => {
   // controls if audio/video is on or off (seperately from each other)
   const [audio, setAudio] = useState(true);
   const [video, setVideo] = useState(true);
+
+  useInterval(async () => {
+    newMsg = await fetch("http://127.0.0.1:5000/receive_text", 
+      {method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+      crossDomain: true,
+      body: JSON.stringify({
+        "id": sessionStorage.getItem("callId"), 
+        "user": sessionStorage.getItem("userName")
+      }),
+    })
+    .then(response => response.json())
+    .then(data => {
+      console.log('Success:', data);
+      setSendSuccess(true)
+    })
+    .catch((error) => {
+      console.error('Error:', error);
+    })
+  }, 1500);
 
   // controls the video DOM element
   const webcamVideo = useRef();

@@ -35,6 +35,7 @@ def broker_text():
 
     while True:
         message = frontend.recv()
+        print(message)
         backend.send(message)
 
 if __name__ == "__main__":
@@ -45,6 +46,8 @@ if __name__ == "__main__":
     video_thread.start()
     audio_thread.start()
     text_thread.start()
+
+    print("broker started")
 
     video_thread.join()
     audio_thread.join()

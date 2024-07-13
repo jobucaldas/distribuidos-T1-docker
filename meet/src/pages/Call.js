@@ -1,5 +1,25 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {useNavigate} from 'react-router-dom';
+ 
+function useInterval(callback, delay) {
+  const savedCallback = useRef();
+ 
+  // Remember the latest callback.
+  useEffect(() => {
+    savedCallback.current = callback;
+  }, [callback]);
+ 
+  // Set up the interval.
+  useEffect(() => {
+    function tick() {
+      savedCallback.current();
+    }
+    if (delay !== null) {
+      let id = setInterval(tick, delay);
+      return () => clearInterval(id);
+    }
+  }, [delay]);
+}
 
 const Call = () => {
   const navigate = useNavigate();
@@ -7,7 +27,7 @@ const Call = () => {
   const [sendSuccess, setSendSuccess] = useState(false);
 
   const [chatMsg, setChatMsg] = useState('');
-  const [chatLog, setChatLog] = useState([]);
+  const [chatLog, setChatLog] = useState([{"user": "Mensagem do Sistema", "msg": "Carregando mensagens"}]);
 
   // controls if media input is on or off
   const [playing, setPlaying] = useState(false);
@@ -18,6 +38,36 @@ const Call = () => {
   // controls if audio/video is on or off (seperately from each other)
   const [audio, setAudio] = useState(true);
   const [video, setVideo] = useState(true);
+
+  useInterval(async () => {
+    const msgs = [{"user": "Mensagem do Sistema", "msg": "Você entrou na chamada"}]
+    const response = await fetch("http://127.0.0.1:5000/get_chat", 
+      {method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+      crossDomain: true,
+      body: JSON.stringify({
+        "id": sessionStorage.getItem("callId"), 
+        "user": sessionStorage.getItem("userName")
+      }),
+    })
+    .then(response => response.json())
+    .then(data => {
+      console.log(data)
+      data.forEach(msg => {
+        msgs.push(msg)
+      })
+      
+      console.log(msgs)
+    })
+    .catch((error) => {
+      console.error('Error:', error);
+    })
+    
+    setChatLog(msgs);
+  }, 3000);
 
   // controls the video DOM element
   const webcamVideo = useRef();
@@ -58,10 +108,11 @@ const Call = () => {
 
   return (
     <>
-      <div class="flex flex-row space-x-2 items-center fixed left-4 top-4">
+      <div class="flex flex-row space-x-2 items-center fixed left-4 top-4 z-30">
         <button
+            type="button"
             class="text-white bg-gray-700 hover:bg-gray-800 focus:ring-4 focus:ring-gray-300 font-medium rounded-lg text-sm px-5 py-2.5"
-            onClick={() => {navigate("/")}}>
+            onClick={()=>{navigate("/")}}>
           Sair
         </button>
         <>
@@ -88,30 +139,27 @@ const Call = () => {
             }
           </div>
         </div>
-        <div className="col-start-4 relative h-screen justify-end content-end bg-slate-200">
-          <h1 class="absolute z-20 w-full space-y-4 pt-6 p-4 bg-slate-200">Chat</h1>
-          <div class="absolute bottom-0 flex flex-col space-y-4 m-4">
-            <div class="bg-white rounded-lg shadow-md p-4">
-              <div class="flex flex-row space-x-2 space-y-2">
-                <div class="flex flex-col">
-                  <span class="font-medium">Mensagem do Sistema</span>
-                  <span class="text-gray-500 text-sm">Você entrou na chamada</span>
-                </div>
-              </div>
-              {sendSuccess ?
-                <div class="flex flex-row space-x-2 space-y-2">
-                  <div class="flex flex-col">
-                    <span class="font-medium">{sessionStorage.getItem("userName")}</span>
-                    <span class="text-gray-500 text-sm">Você entrou na chamada</span>
+        <div className="relative flex flex-col col-start-4 min-h-screen w-full justify-end content-end bg-slate-200">
+          <div class="w-full">
+            <div class="flex flex-col space-y-4 p-4 bg-slate-200">
+              {chatLog.map(message => (
+                  <div class="bg-white rounded-lg shadow-md p-4">
+                    <div class="flex flex-row space-x-2 space-y-2">
+                      <div class="flex flex-col">
+                        <span class="font-medium">{message.user}</span>
+                        <span class="text-gray-500 text-sm">{message.msg}</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                :
-                null
-              }
+                )
+              )}
             </div>
-            <div className="flex flex-col z-10 bg-white rounded-lg shadow-md p-4">
+          </div>
+          <div class="sticky bottom-4 right-0 w-full z-10 screen-x-0">
+            <div class="flex flex-col bg-white rounded-lg shadow-md p-4 m-4 mb-0">
               <input
                 type="text"
+                value={chatMsg}
                 onChange={e => {setChatMsg(e.target.value)}}
                 placeholder="Insira sua mensagem..."
                 className="border border-gray-300 rounded-lg px-4 py-2"
@@ -119,7 +167,7 @@ const Call = () => {
               <button
                 onClick={
                   async () => {
-                    await fetch("https://zfg8jsn9-5000.brs.devtunnels.ms/send_text", 
+                    await fetch("http://127.0.0.1:5000/send_message", 
                       {method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
@@ -133,13 +181,18 @@ const Call = () => {
                       }),
                     })
                     .then(response => response.json())
-                    .then(data => {
-                      console.log('Success:', data);
-                      setSendSuccess(true)
-                    })
                     .catch((error) => {
                       console.error('Error:', error);
                     })
+
+                    setChatMsg('')
+                    const tempMsg = chatLog
+                    tempMsg.push({
+                      "user": sessionStorage.getItem("userName"),
+                      "msg": chatMsg
+                    })
+
+                    setChatLog(tempMsg);
                   }
                 }
                 type="button"

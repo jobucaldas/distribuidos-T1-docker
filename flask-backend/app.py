@@ -10,7 +10,7 @@ from collections import defaultdict
 app = Flask(__name__)
 cors = CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
-chat = defaultdict(list)
+chat = {}
 
 def mogrify(topic, msg):
     """ json encode the message and prepend the topic """
@@ -62,42 +62,51 @@ def receive_audio():
         audio_data = socket.recv()
         #print("Received audio data")
 
-@app.route('/send_chat', methods=['GET', 'POST'])
+@app.route('/send_message', methods=['GET', 'POST'])
 @cross_origin()
 def send_text():
     content = request.json
     # response = jsonify({"response": textSocket.send(f"{content['id']} - {content['username']}: {content['message']}".encode('utf-8'))})
     # response.headers.add('Access-Control-Allow-Origin', '*')
+    jsonContent = {
+                    "id": content['id'],
+                    "user": content['user'],
+                    "msg": content['msg']
+                }
 
-    return jsonify({
-        "response": textSocket.send(
-            mogrify(content['id'], {
-                "user": content['user'],
-                "msg": content['msg']
-            })
-        )
-    })
+    return { "json": jsonContent, "response": textSocket.send_json(jsonContent) }
 
 @app.route('/get_chat', methods=['GET', 'POST'])
 @cross_origin()
 def get_chat():
     content = request.json
-    return chat[content['id']]
+    response = 401
+
+    if(content['id'] in chat.keys()):
+        response = chat[content['id']]
+
+    return jsonify(response)
 
 
 def receive_text():
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
     socket.connect("tcp://localhost:5560")
-
-    channels = range(1, 9999)
-
-    for channel in channels:
-        socket.setsockopt_string(zmq.SUBSCRIBE, channel)
+    socket.setsockopt_string(zmq.SUBSCRIBE, "")
 
     while True:
-        received_data = socket.recv().decode('utf-8')
-        print(received_data)
+        received_data = socket.recv_json()
+
+        if(received_data["id"] in chat.keys()):
+            chat[received_data["id"]].append({
+                "user": received_data["user"],
+                "msg": received_data["msg"]
+            })
+        else:
+            chat[received_data["id"]] = [{
+                "user": received_data["user"],
+                "msg": received_data["msg"]
+            }]
 
 
 if __name__ == '__main__':
@@ -107,6 +116,7 @@ if __name__ == '__main__':
 
     text_receive_thread = threading.Thread(target=partial(receive_text))
     text_receive_thread.start()
+    print("Starting")
 
     app.run(debug=True)
 

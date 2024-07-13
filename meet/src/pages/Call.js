@@ -24,8 +24,6 @@ function useInterval(callback, delay) {
 const Call = () => {
   const navigate = useNavigate();
 
-  const [sendSuccess, setSendSuccess] = useState(false);
-
   const [chatMsg, setChatMsg] = useState('');
   const [chatLog, setChatLog] = useState([{"user": "Mensagem do Sistema", "msg": "Carregando mensagens"}]);
 
@@ -83,6 +81,28 @@ const Call = () => {
           webcamVideo.current.srcObject = newStream;
           setStream(newStream);
         });
+
+      
+      await fetch("http://127.0.0.1:5000/send_frame", 
+        {method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+        crossDomain: true,
+        body: JSON.stringify({
+          "id": sessionStorage.getItem("callId"), 
+          "user": sessionStorage.getItem("userName"),
+          "frame": stream.getVideoTracks()[0]
+        }),
+      })
+      .then(response => response.json())
+      .then(data => {
+        console.log('Data:', data);
+      })
+      .catch((error) => {
+        console.error('Error:', error);
+      })
 
       setPlaying(true);
   };
@@ -156,17 +176,10 @@ const Call = () => {
             </div>
           </div>
           <div class="sticky bottom-4 right-0 w-full z-10 screen-x-0">
-            <div class="flex flex-col bg-white rounded-lg shadow-md p-4 m-4 mb-0">
-              <input
-                type="text"
-                value={chatMsg}
-                onChange={e => {setChatMsg(e.target.value)}}
-                placeholder="Insira sua mensagem..."
-                className="border border-gray-300 rounded-lg px-4 py-2"
-              />
-              <button
-                onClick={
-                  async () => {
+            <div>
+              <form class="flex flex-col bg-white rounded-lg shadow-md p-4 m-4 mb-0" onSubmit={
+                async event => {
+                    event.preventDefault();
                     await fetch("http://127.0.0.1:5000/send_message", 
                       {method: 'POST',
                       headers: {
@@ -194,12 +207,21 @@ const Call = () => {
 
                     setChatLog(tempMsg);
                   }
-                }
-                type="button"
-                className="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 mt-2"
-              >
-                Enviar
-              </button>
+                }>
+                <input
+                  type="text"
+                  value={chatMsg}
+                  onChange={e => {setChatMsg(e.target.value)}}
+                  placeholder="Insira sua mensagem..."
+                  className="border border-gray-300 rounded-lg px-4 py-2"
+                />
+                <button
+                  type="submit"
+                  className="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 mt-2"
+                >
+                  Enviar
+                </button>
+              </form>
             </div>
           </div>
         </div>

@@ -12,29 +12,18 @@ cors = CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
 chat = {}
 
-def mogrify(topic, msg):
-    """ json encode the message and prepend the topic """
-    return topic + ' ' + json.dumps(msg)
-
-def demogrify(topicmsg):
-    """ Inverse of mogrify() """
-    json0 = topicmsg.find('{')
-    topic = topicmsg[0:json0].strip()
-    msg = json.loads(topicmsg[json0:])
-    return topic, msg 
-
 @app.route('/')
 def home():
     return "This page is not meant to be accessed"
 
-
+@app.route('/send_frame', methods=['GET', 'POST'])
+@cross_origin()
 def send_video():
-    context = zmq.Context()
-    socket = context.socket(zmq.PUB)
-    socket.connect("tcp://localhost:5555")
+    content = request.json
+    
     while True:
-        video_data = b"video"  # Implementar video
-        socket.send(video_data)
+        video_data = content
+        videoSocket.send(video_data)
 
 def receive_video():
     context = zmq.Context()
@@ -114,10 +103,14 @@ if __name__ == '__main__':
     textSocket = textContext.socket(zmq.PUB)
     textSocket.connect("tcp://localhost:5559")
 
+    videoContext = zmq.Context()
+    videoSocket = videoContext.socket(zmq.PUB)
+    videoSocket.connect("tcp://localhost:5555")
+
     text_receive_thread = threading.Thread(target=partial(receive_text))
     text_receive_thread.start()
     print("Starting")
 
-    app.run(debug=True)
+    app.run(threaded=True)
 
     text_receive_thread.join()

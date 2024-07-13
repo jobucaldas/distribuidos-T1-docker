@@ -11,6 +11,7 @@ def broker_video():
 
     while True:
         message = frontend.recv()
+        print(message)
         backend.send(message)
 
 def broker_audio():
@@ -35,7 +36,6 @@ def broker_text():
 
     while True:
         message = frontend.recv()
-        print(message)
         backend.send(message)
 
 if __name__ == "__main__":

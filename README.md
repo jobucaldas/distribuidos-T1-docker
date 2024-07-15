@@ -5,7 +5,7 @@ Aplicação de video chamadas com chat de texto que utiliza uma implementação 
 - Augusto Cesar do Amaral | RA: 
 - Caique Rocha Goncalves | RA: 
 - João Victor Bueno de Caldas | RA: 769657
-- Lucas Pereira Quadros | RA:
+- Lucas Pereira Quadros | RA: 800981
 
 ## Requisitos
 Considerando o deployment em uma máquina com ubuntu linux 24.04, é necessário instalar os seguintes pacotes antes da execução da aplicação

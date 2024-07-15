@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { json, useNavigate } from 'react-router-dom';
 import './Home.css';
 import { useState } from 'react';
 
@@ -8,22 +8,50 @@ export default function Home() {
     const [chosenId, setChosenId] = useState('');
     const [clicked, setClicked] = useState(false);
 
-    function EnterCall(){
+    async function EnterCall(){
         if(userName.length < 3){
             setClicked(true);
         } else{
             sessionStorage.setItem("userName", userName);
             sessionStorage.setItem("callId", chosenId);
+            sessionStorage.setItem("userId", crypto.randomUUID());
+            const response = await fetch("http://127.0.0.1:5000/enter_call/" + chosenId, 
+            {method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+            },
+            crossDomain: true,
+            body: JSON.stringify({
+                "uid": sessionStorage.getItem("userId"),
+                "user": userName
+            }),
+            })
+            .then(response => response.json())
             navigate("/call")
         }
     }
 
-    function StartCall(){
+    async function StartCall(){
         if(userName.length < 3){
             setClicked(true);
         } else{
             sessionStorage.setItem("userName", userName);
+            sessionStorage.setItem("userId", crypto.randomUUID());
             sessionStorage.setItem("callId", (Math.floor(Math.random() * (9999 - 1 + 1)) + 1));
+            const response = await fetch("http://127.0.0.1:5000/enter_call/" + sessionStorage.getItem("callId"), 
+            {method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+            },
+            crossDomain: true,
+            body: JSON.stringify({
+                "uid": sessionStorage.getItem("userId"),
+                "user": userName
+            }),
+            })
+            .then(response => response.json())
             navigate("/call")
         }
     }

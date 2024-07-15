@@ -21,11 +21,23 @@ function useInterval(callback, delay) {
   }, [delay]);
 }
 
+const blobToBase64 = blob => {
+  const reader = new FileReader();
+  reader.readAsDataURL(blob);
+  return new Promise(resolve => {
+    reader.onloadend = () => {
+      resolve(reader.result);
+    };
+  });
+};
+
 const Call = () => {
   const navigate = useNavigate();
 
+  const [users, setUsers] = useState([])
   const [chatMsg, setChatMsg] = useState('');
   const [chatLog, setChatLog] = useState([{"user": "Mensagem do Sistema", "msg": "Carregando mensagens"}]);
+  const [videos, setVideos] = useState([]); 
 
   // controls if media input is on or off
   const [playing, setPlaying] = useState(false);
@@ -37,35 +49,28 @@ const Call = () => {
   const [audio, setAudio] = useState(true);
   const [video, setVideo] = useState(true);
 
+  // chat
   useInterval(async () => {
     const msgs = [{"user": "Mensagem do Sistema", "msg": "Você entrou na chamada"}]
-    const response = await fetch("http://127.0.0.1:5000/get_chat", 
-      {method: 'POST',
+
+    await fetch("http://127.0.0.1:5000/get_chat/" + sessionStorage.getItem("callId"), 
+      {method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
       },
       crossDomain: true,
-      body: JSON.stringify({
-        "id": sessionStorage.getItem("callId"), 
-        "user": sessionStorage.getItem("userName")
-      }),
     })
     .then(response => response.json())
     .then(data => {
-      console.log(data)
-      data.forEach(msg => {
-        msgs.push(msg)
-      })
-      
-      console.log(msgs)
+      if(data !== 401)
+        data.forEach(msg => {
+          msgs.push(msg)
+        })
     })
-    .catch((error) => {
-      console.error('Error:', error);
-    })
-    
+    .catch((error) => { console.error('Error:', error) })
+
     setChatLog(msgs);
-  }, 3000);
+  }, 1000);
 
   // controls the video DOM element
   const webcamVideo = useRef();
@@ -74,38 +79,95 @@ const Call = () => {
   const startStream = async () => {
       let newStream = await navigator.mediaDevices
         .getUserMedia({
-          video: { width: 1280, height: 720, facingMode: "user" },
+          video: { width: 640, height: 360, facingMode: "user" },
           audio: true,
         })
         .then((newStream) => {
           webcamVideo.current.srcObject = newStream;
           setStream(newStream);
-        });
-
-      
-      await fetch("http://127.0.0.1:5000/send_frame", 
-        {method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-        crossDomain: true,
-        body: JSON.stringify({
-          "id": sessionStorage.getItem("callId"), 
-          "user": sessionStorage.getItem("userName"),
-          "frame": stream.getVideoTracks()[0]
-        }),
-      })
-      .then(response => response.json())
-      .then(data => {
-        console.log('Data:', data);
-      })
-      .catch((error) => {
-        console.error('Error:', error);
-      })
+        })
 
       setPlaying(true);
   };
+
+  // get users
+  useInterval(async () => {
+    await fetch(
+      "http://127.0.0.1:5000/get_users/" + sessionStorage.getItem("callId"), 
+      {
+        method: 'GET',
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+        },
+        crossDomain: true
+      }
+    )
+    .then(response => response.json())
+    .then(data => {
+      setUsers(data['users'])
+    })
+  }, 5000)
+
+  // Video chat
+  useInterval(() => {
+    // Send video
+    if(playing && video){
+      var canvas = document.createElement("canvas");
+      canvas.width = webcamVideo.current.videoWidth;
+      canvas.height = webcamVideo.current.videoHeight;
+      var contex = canvas.getContext("2d");
+      contex.drawImage(webcamVideo.current, 0, 0, canvas.width, canvas.height);
+      
+      canvas.toBlob(async function(blob){
+        let formData = new FormData()
+        formData.append('frame', blob)
+
+        await fetch(
+          "http://127.0.0.1:5000/send_video/" + sessionStorage.getItem("callId") + "/" + sessionStorage.getItem("userId"), 
+          {
+            method: 'POST',
+            headers: {
+              'Access-Control-Allow-Origin': '*',
+            },
+            crossDomain: true,
+            body: formData
+          }
+        )
+      }, 'image/jpg', 0.80)
+    }
+
+    let tempVideo = []
+    let len = users.length
+    users.forEach(async (user) => {
+      if(user === sessionStorage.getItem("userId")){
+        len--
+      } else{
+        await fetch("http://127.0.0.1:5000/get_video/" + sessionStorage.getItem("callId") + "/" + user, 
+          {method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+          crossDomain: true,
+        })
+        .then(response => response.blob())
+        .then(blobToBase64)
+        .then(res => {
+          console.log(res)
+          const base64String = res
+            .replace('data:', '')
+            .replace(/^.+,/, '')
+          tempVideo.push({"key": user, "res": base64String})
+          if(--len === 0){
+            setVideos([...tempVideo])
+          }
+        })
+        .catch((error) => {
+          console.error('Error:', error);
+        })
+      }
+    })
+  }, 50);
 
   // stops the user's media stream
   const stopStream = () => {
@@ -132,7 +194,22 @@ const Call = () => {
         <button
             type="button"
             class="text-white bg-gray-700 hover:bg-gray-800 focus:ring-4 focus:ring-gray-300 font-medium rounded-lg text-sm px-5 py-2.5"
-            onClick={()=>{navigate("/")}}>
+            onClick={async ()=>{
+              await fetch("http://127.0.0.1:5000/exit_call/" + sessionStorage.getItem("callId"), 
+                {method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                },
+                crossDomain: true,
+                body: JSON.stringify({
+                    "uid": sessionStorage.getItem("userId")
+                }),
+                })
+                .then(response => response.json())
+                navigate("/call")
+                navigate("/")
+              }}>
           Sair
         </button>
         <>
@@ -141,8 +218,13 @@ const Call = () => {
         </>
       </div>
       <div class="grid grid-cols-4 min-h-screen">
-        <div class="relative col-span-4 md:col-span-3">
-          <video class="absolute bottom-4 right-4 max-w-64" ref={webcamVideo} autoPlay playsInline></video>
+        <div class="fixed w-3/4 h-screen col-span-4 md:col-span-3">
+          <div class=" absolute py-20 px-8 flex align-center justify-center space-x-6 h-full w-full">
+            {videos.map(video => (
+              <img key={video.key} alt="video" src={"data:image/jpeg;base64," + video.res} class='w-full'/>
+            ))}
+          </div>
+          <video class="fixed bottom-4 right-1/4 max-w-64" ref={webcamVideo} autoPlay playsInline></video> 
           <div class="flex flex-row space-x-4 mx-4 fixed bottom-4">
             <button
               class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5"
@@ -151,8 +233,8 @@ const Call = () => {
             </button>
             {playing ?
               <>
-                <button class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5" onClick={toggleAudio}>Habilitar Som</button>
-                <button class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5" onClick={toggleVideo}>Habilitar Video</button>
+                <button class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5" onClick={toggleAudio}>{audio?"Habilitar Som":"Desabilitar Som"}</button>
+                <button class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5" onClick={toggleVideo}>{video?"Desabilitar Video":"Habilitar Video"}</button>
               </>
               :
               null
@@ -180,7 +262,7 @@ const Call = () => {
               <form class="flex flex-col bg-white rounded-lg shadow-md p-4 m-4 mb-0" onSubmit={
                 async event => {
                     event.preventDefault();
-                    await fetch("http://127.0.0.1:5000/send_message", 
+                    await fetch("http://127.0.0.1:5000/send_message/" + sessionStorage.getItem("callId") + "/" + sessionStorage.getItem("userName"), 
                       {method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
@@ -188,8 +270,6 @@ const Call = () => {
                       },
                       crossDomain: true,
                       body: JSON.stringify({
-                        "id": sessionStorage.getItem("callId"), 
-                        "user": sessionStorage.getItem("userName"),
                         "msg": chatMsg
                       }),
                     })

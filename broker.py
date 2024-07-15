@@ -10,8 +10,9 @@ def broker_video():
     backend.bind("tcp://*:5556")
 
     while True:
+        json = frontend.recv_json()
         message = frontend.recv()
-        print(message)
+        backend.send_json(json, zmq.SNDMORE)
         backend.send(message)
 
 def broker_audio():

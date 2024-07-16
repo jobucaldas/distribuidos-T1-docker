@@ -1,146 +1,212 @@
-import cv2
-import pyaudio
 import zmq
 import threading
-import time
-from functools import partial
+import numpy as np
+import pyaudio
+import cv2 as cv
+import tkinter as tk
+from tkinter import scrolledtext
+import base64
+import zlib
 
+def init_chat(pub_socket, topic, pub_id, context, threads):
+    root = tk.Tk()
+    root.title("Meet")
 
-def send_video():
-    """
-    Inicia a captura de vídeo da câmera e envia os quadros de vídeo codificados em JPEG via socket PUB zmq.
+    chat_display = scrolledtext.ScrolledText(root, wrap=tk.WORD)
+    chat_display.grid(row=0, column=0, columnspan=2)
 
-    O vídeo é capturado a partir da câmera padrão (índice 0). Os quadros de vídeo são capturados,
-    codificados em formato JPEG e enviados continuamente através do socket zmq conectado ao endereço
-    'tcp://localhost:5555'.
+    msg_entry = tk.Entry(root, width=50)
+    msg_entry.grid(row=1, column=0)
+    msg_entry.bind("<Return>", lambda event: send_messages(event, msg_entry, pub_socket, topic, pub_id))
 
-    """
-    context = zmq.Context()
-    socket = context.socket(zmq.PUB)
-    socket.connect("tcp://localhost:5555")
-    cap = cv2.VideoCapture(0)  # Captura do vídeo da câmera
+    send_button = tk.Button(root, text="Send", command=lambda: send_messages(None, msg_entry, pub_socket, topic, pub_id))
+    send_button.grid(row=1, column=1)
 
+    root.protocol("WM_DELETE_WINDOW", lambda: close_chat(root, context, threads))
+
+    return root, chat_display, msg_entry
+
+def close_chat(root, context, threads):
+    print("Closing...")
+    root.quit()
+    context.term()
+
+    for thread in threads:
+        thread.join()
+
+def send_messages(event, msg_entry, pub_socket, topic, pub_id):
+    message = msg_entry.get()
+    pub_socket.send_string(f"{topic};{message};{pub_id}")
+    msg_entry.delete(0, tk.END)
+
+def receive_messages(sub_socket, chat_display, pub_id):
     while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        _, buffer = cv2.imencode('.jpg', frame)
-        socket.send(buffer.tobytes())
+        data_bytes = sub_socket.recv()
+        parts = data_bytes.split(b';')
+        if len(parts) == 3:
+            topic, message, publisher_id = parts
+            chat_display.insert(tk.END, f"({publisher_id.decode()}) : {message.decode()}\n")
+            chat_display.yview(tk.END)
 
-    cap.release()
+def send_video(pub_socket_video, topic, pub_id):
+    cap = cv.VideoCapture(0)
 
+    if not cap.isOpened():
+        print("Unable to open camera")
+        return
 
-def receive_video():
-    context = zmq.Context()
-    socket = context.socket(zmq.SUB)
-    socket.connect("tcp://localhost:5556")
-    socket.setsockopt_string(zmq.SUBSCRIBE, "")
-    while True:
-        video_data = socket.recv()
-        #print("Received video data")
+    cap.set(cv.CAP_PROP_FRAME_WIDTH, 320)
+    cap.set(cv.CAP_PROP_FRAME_HEIGHT, 240)
+    cap.set(cv.CAP_PROP_FPS, 15)
 
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print("Error reading camera frame")
+                break
 
-def send_audio():
-    """
-    Inicia a captura de áudio do microfone e envia os dados de áudio via socket PUB zmq.
+            cv.imshow("Local camera", frame)
 
-    Utiliza a biblioteca PyAudio para abrir um stream de captura de áudio com formato
-    PCM de 16 bits, 1 canal e taxa de amostragem de 44100 Hz. Os dados de áudio são
-    continuamente lidos do stream e enviados via socket zmq conectado ao endereço
-    'tcp://localhost:5557'.
+            _, buffer = cv.imencode('.jpg', frame, [int(cv.IMWRITE_JPEG_QUALITY), 50])
+            compressed_frame = zlib.compress(buffer, level=1)
 
-    """
-    context = zmq.Context()
-    socket = context.socket(zmq.PUB)
-    socket.connect("tcp://localhost:5557")
+            pub_socket_video.send_multipart([topic.encode(), pub_id.encode(), compressed_frame])
 
+            if cv.waitKey(1) & 0xFF == ord('q'):
+                break
+    finally:
+        cap.release()
+        cv.destroyAllWindows()
+
+def receive_video(sub_socket_video, pub_id):
+    try:
+        while True:
+            topic, pub_ID, compressed_frame = sub_socket_video.recv_multipart()
+            
+            if pub_ID.decode() != pub_id:
+                if not compressed_frame:
+                    print("No data received")
+                    continue
+
+                try:
+                    decompressed_frame = zlib.decompress(compressed_frame)
+                    jpg_as_np = np.frombuffer(decompressed_frame, dtype=np.uint8)
+                    frame = cv.imdecode(jpg_as_np, flags=cv.IMREAD_COLOR)
+                except Exception as e:
+                    print(f"Error decoding frame: {e}")
+                    continue
+
+                cv.namedWindow('Participant', cv.WINDOW_NORMAL)
+                if frame is not None:
+                    cv.imshow("Participant", frame)
+                else:
+                    print("Invalid frame")
+
+                if cv.waitKey(1) & 0xFF == ord('q'):
+                    break
+    finally:
+        cv.destroyAllWindows()
+
+def send_audio(pub_socket_audio, topic, pub_id):
     p = pyaudio.PyAudio()
-    stream = p.open(format=pyaudio.paInt16, channels=1, rate=44100, input=True, frames_per_buffer=1024)
+    stream = p.open(format=pyaudio.paInt16,
+                    channels=1,
+                    rate=44100,
+                    input=True,
+                    frames_per_buffer=1024)
 
-    while True:
-        data = stream.read(1024)
-        socket.send(data)
+    try:
+        while True:
+            data = stream.read(1024, exception_on_overflow=False)
+            base64_audio = base64.b64encode(data).decode('utf-8')
+            pub_socket_audio.send_multipart([topic.encode(), pub_id.encode(), base64_audio.encode()])
+            #print("Audio sent")
+    except Exception as e:
+        print(f"Error while sending audio: {e}")
+    finally:
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
 
-
-def receive_audio():
-    """
-    Recebe dados de áudio via socket SUB zmq e reproduz os dados recebidos no dispositivo de saída.
-
-    Configura um socket zmq do tipo SUB para se conectar ao endereço 'tcp://localhost:5558' e
-    subscrição em todos os tópicos. Utiliza a biblioteca PyAudio para abrir um stream de saída
-    com formato PCM de 16 bits, 1 canal e taxa de amostragem de 44100 Hz. Os dados de áudio
-    recebidos via socket são escritos no stream de saída para reprodução.
-
-    """
-    context = zmq.Context()
-    socket = context.socket(zmq.SUB)
-    socket.connect("tcp://localhost:5558")
-    socket.setsockopt_string(zmq.SUBSCRIBE, "")
-
+def receive_audio(sub_socket_audio, pub_id, topic):
     p = pyaudio.PyAudio()
-    stream = p.open(format=pyaudio.paInt16, channels=1, rate=44100, output=True)
+    stream = p.open(format=pyaudio.paInt16,
+                    channels=1,
+                    rate=44100,
+                    output=True,
+                    frames_per_buffer=1024)
 
-    while True:
-        message = socket.recv()
-        stream.write(message)
+    sub_socket_audio.setsockopt(zmq.RCVTIMEO, 1000)
 
+    try:
+        while True:
+            try:
+                topic, pub_ID, base64_audio = sub_socket_audio.recv_multipart()
+                if pub_ID.decode() != pub_id or topic.decode() != topic:
+                    continue
 
-def send_text(username, selected_channels):
-    context = zmq.Context()
-    socket = context.socket(zmq.PUB)
-    socket.connect("tcp://localhost:5559")
-    channel = None
-    text_data = None
-    print("Digite .t para trocar de canal de texto\n")
-    while True:
-        time.sleep(0.05)
-        if channel == None:
-            channel = input("Selecione o canal para enviar sua mensagem: \n")
-        if channel not in selected_channels:
-            print(f"Canal {channel} inválido")
-            channel = None
-            continue
-        text_data = input("Digite sua mensagem: \n")
-        if text_data == ".t":
-            channel = None
-            continue
-        socket.send(f"{channel} - {username}: {text_data}".encode('utf-8'))
-
-def receive_text(selected_channels):
-    context = zmq.Context()
-    socket = context.socket(zmq.SUB)
-    socket.connect("tcp://localhost:5560")
-    for channel in selected_channels:
-        socket.setsockopt_string(zmq.SUBSCRIBE, channel)
-    while True:
-        text_data = socket.recv().decode('utf-8')
-        print(text_data)
+                data = base64.b64decode(base64_audio)
+                stream.write(data)
+                print("Audio successfully received and played")
+            except zmq.error.Again as e:
+                pass
+    except Exception as e:
+        print(f"Error decoding or playing audio: {e}")
+    finally:
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
 
 if __name__ == "__main__":
-    username = input("Insira seu nome de usuário: ")
-    text_channels = ["t1", "t2", "t3"]
-    audio_channels = ["a1", "a2", "a3"]
-    video_channels = ["v1", "v2", "v3"]
-    print(f"Canais disponíveis:\n Texto: {text_channels}\n Audio: {audio_channels}\n Video:{video_channels}")
-    selected_channels = input("Insira os canais aos quais deseja se inscrever (separados por espaço): ").split()
+    pub_id = input("Enter username: ")
+    topic = input("Enter channel: ")
 
-    video_send_thread = threading.Thread(target=send_video)
-    video_receive_thread = threading.Thread(target=receive_video)
-    audio_send_thread = threading.Thread(target=send_audio)
-    audio_receive_thread = threading.Thread(target=receive_audio)
-    text_send_thread = threading.Thread(target=send_text, args=(username, selected_channels))
-    text_receive_thread = threading.Thread(target=partial(receive_text, selected_channels))
+    context = zmq.Context()
 
-    video_send_thread.start()
-    video_receive_thread.start()
-    audio_send_thread.start()
-    audio_receive_thread.start()
-    text_send_thread.start()
-    text_receive_thread.start()
+    pub_socket = context.socket(zmq.PUB)
+    pub_socket.connect(f"tcp://localhost:5555")
 
-    video_send_thread.join()
-    video_receive_thread.join()
-    audio_send_thread.join()
-    audio_receive_thread.join()
-    text_send_thread.join()
-    text_receive_thread.join()
+    sub_socket = context.socket(zmq.SUB)
+    sub_socket.connect(f"tcp://localhost:5556")
+    sub_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
+
+    pub_socket_video = context.socket(zmq.PUB)
+    pub_socket_video.connect(f"tcp://localhost:5589")
+
+    sub_socket_video = context.socket(zmq.SUB)
+    sub_socket_video.connect(f"tcp://localhost:5590")
+    sub_socket_video.setsockopt_string(zmq.SUBSCRIBE, topic)
+
+    pub_socket_audio = context.socket(zmq.PUB)
+    pub_socket_audio.connect(f"tcp://localhost:6000")
+
+    sub_socket_audio = context.socket(zmq.SUB)
+    sub_socket_audio.connect(f"tcp://localhost:6001")
+    sub_socket_audio.setsockopt_string(zmq.SUBSCRIBE, topic)
+
+    root, chat_display, msg_entry = init_chat(pub_socket, topic, pub_id, context, [])
+
+    threads = []
+
+    receive_thread = threading.Thread(target=receive_messages, args=(sub_socket, chat_display, pub_id), daemon=True)
+    receive_thread.start()
+    threads.append(receive_thread)
+
+    send_thread_video = threading.Thread(target=send_video, args=(pub_socket_video, topic, pub_id), daemon=True)
+    send_thread_video.start()
+    threads.append(send_thread_video)
+
+    receive_thread_video = threading.Thread(target=receive_video, args=(sub_socket_video, pub_id), daemon=True)
+    receive_thread_video.start()
+    threads.append(receive_thread_video)
+
+    send_thread_audio = threading.Thread(target=send_audio, args=(pub_socket_audio, topic, pub_id), daemon=True)
+    send_thread_audio.start()
+    threads.append(send_thread_audio)
+
+    receive_thread_audio = threading.Thread(target=receive_audio, args=(sub_socket_audio, pub_id), daemon=True)
+    receive_thread_audio.start()
+    threads.append(receive_thread_audio)
+
+    root.mainloop()

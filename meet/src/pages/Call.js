@@ -153,7 +153,6 @@ const Call = () => {
         .then(response => response.blob())
         .then(blobToBase64)
         .then(res => {
-          console.log(res)
           const base64String = res
             .replace('data:', '')
             .replace(/^.+,/, '')
@@ -167,7 +166,7 @@ const Call = () => {
         })
       }
     })
-  }, 50);
+  }, 100);
 
   // stops the user's media stream
   const stopStream = () => {

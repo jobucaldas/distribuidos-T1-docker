@@ -1,3 +1,4 @@
+from ctypes import c_int64
 import zmq
 import threading
 
@@ -10,10 +11,12 @@ def broker_video():
     backend.bind("tcp://*:5556")
 
     while True:
-        json = frontend.recv_json()
-        message = frontend.recv()
-        backend.send_json(json, zmq.SNDMORE)
-        backend.send(message)
+        # json = frontend.recv_json()
+        # message = frontend.recv()
+        message = frontend.recv_multipart()
+        # backend.send_json(json, zmq.SNDMORE)
+        # backend.send(message)
+        backend.send_multipart(message)
 
 def broker_audio():
     context = zmq.Context()

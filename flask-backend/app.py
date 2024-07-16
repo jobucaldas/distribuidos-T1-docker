@@ -50,20 +50,19 @@ def get_online(id):
         tempUsers.append(user)
     return jsonify({"users": tempUsers})
 
-@app.route('/send_video/<id>/<user>', methods=['POST'])
+@app.route('/send_video/<idReq>/<userReq>', methods=['POST'])
 @cross_origin()
-def send_video(id, user):
+def send_video(idReq, userReq):
     received = request.files.to_dict()
     file = received['frame'].stream.read()
 
-    if(id not in video.keys()):
-        video[id] = {}
-
     # TODO: Fix sending data to zmq socket
-    videoSocket.send_json({ "id": id, "user": user }, zmq.SNDMORE)
-    videoSocket.send(base64.encodebytes(file))
+    jsonData = dict( id = idReq, user = userReq )
+    videoSocket.send_multipart([base64.encodebytes(json.dumps(jsonData).encode()), base64.encodebytes(file)])
+    # videoSocket.send_json(jsonData, zmq.SNDMORE)
+    # videoSocket.send(base64.encodebytes(file))
     
-    return { "id": id, "user": user, "response": "null" }
+    return { "id": idReq, "user": userReq, "response": "null" }
 
 @app.route('/get_video/<id>/<user>', methods=['GET', 'POST'])
 @cross_origin()
@@ -91,7 +90,7 @@ def send_audio():
 
 @app.route('/get_audio', methods=['GET', 'POST'])
 @cross_origin()
-def receive_audio():
+def get_audio():
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
     socket.connect("tcp://localhost:5558")
@@ -144,8 +143,10 @@ def receive_video():
     socket.setsockopt_string(zmq.SUBSCRIBE, "")
 
     while True:
-        received_json = socket.recv_json()
-        received_data = socket.recv()
+        # received_json = socket.recv_json()
+        # received_data = socket.recv()
+        received_json, received_data = socket.recv_multipart()
+        received_json = json.loads(base64.decodebytes(received_json).decode())
 
         if(received_json['id'] not in video.keys()):
             video[received_json['id']] = {}

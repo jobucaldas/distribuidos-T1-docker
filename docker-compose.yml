@@ -1,0 +1,56 @@
+# include:
+#   - frontend/docker-compose.yml
+
+services:
+  broker:
+    container_name: dist1-broker
+    build:
+      context: ./broker
+      dockerfile: dockerfile
+    ports:
+      - 5555:5555
+      - 5556:5556
+      - 5589:5589
+      - 5590:5590
+      - 6000:6000
+      - 6001:6001
+    restart: always
+    networks:
+      - private
+    
+  client:
+    container_name: dist1-client
+    build:
+      context: ./client
+      dockerfile: dockerfil
+    restart: always
+    networks:
+      - private
+
+  api:
+    container_name: dist1-api
+    build:
+      context: ./frontend
+      dockerfile: api.dockerfile
+    ports:
+      - 5000:5000
+    networks:
+      - private
+    restart: always
+
+  interface:
+    container_name: dist1-interface
+    build:
+      context: ./frontend
+      dockerfile: interface.dockerfile
+    ports:
+      - 3005:3000
+    restart: always
+    networks:
+    - private
+    - public
+  
+networks:
+  public: 
+  private: 
+    internal: true

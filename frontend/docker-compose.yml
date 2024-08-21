@@ -1,0 +1,28 @@
+# services:
+#   api:
+#     container_name: dist1-api
+#     build:
+#       context: .
+#       dockerfile: api.dockerfile
+#     ports:
+#       - 5000:5000
+#     restart: always
+#     networks:
+#       - private
+
+#   interface:
+#     container_name: dist1-interface
+#     build:
+#       context: .
+#       dockerfile: interface.dockerfile
+#     ports:
+#       - 3005:3000
+#     restart: always
+#     networks:
+#       - private
+#       - public
+
+# networks:
+#   public: 
+#   private: 
+#     internal: true

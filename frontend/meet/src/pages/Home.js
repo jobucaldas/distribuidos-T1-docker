@@ -1,6 +1,7 @@
 import { json, useNavigate } from 'react-router-dom';
 import './Home.css';
 import { useState } from 'react';
+import { v4 as uuidv4 } from 'uuid'
 
 export default function Home() {
     const navigate = useNavigate();
@@ -14,7 +15,7 @@ export default function Home() {
         } else{
             sessionStorage.setItem("userName", userName);
             sessionStorage.setItem("callId", chosenId);
-            sessionStorage.setItem("userId", crypto.randomUUID());
+            sessionStorage.setItem("userId", uuidv4());
             const response = await fetch("http://127.0.0.1:5000/enter_call/" + chosenId, 
             {method: 'POST',
             headers: {
@@ -37,7 +38,7 @@ export default function Home() {
             setClicked(true);
         } else{
             sessionStorage.setItem("userName", userName);
-            sessionStorage.setItem("userId", crypto.randomUUID());
+            sessionStorage.setItem("userId", uuidv4());
             sessionStorage.setItem("callId", (Math.floor(Math.random() * (9999 - 1 + 1)) + 1));
             const response = await fetch("http://127.0.0.1:5000/enter_call/" + sessionStorage.getItem("callId"), 
             {method: 'POST',
